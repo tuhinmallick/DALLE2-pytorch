@@ -140,18 +140,16 @@ def generate_samples(trainer, example_data, clip=None, start_unet=1, end_unet=No
     Returns three lists: real images, generated images, and captions
     """
     real_images, img_embeddings, text_embeddings, txts = zip(*example_data)
-    sample_params = {}
     if img_embeddings[0] is None:
         # Generate image embeddings from clip
         imgs_tensor = torch.stack(real_images)
         assert clip is not None, "clip is None, but img_embeddings is None"
         imgs_tensor.to(device=device)
         img_embeddings, img_encoding = clip.embed_image(imgs_tensor)
-        sample_params["image_embed"] = img_embeddings
     else:
         # Then we are using precomputed image embeddings
         img_embeddings = torch.stack(img_embeddings)
-        sample_params["image_embed"] = img_embeddings
+    sample_params = {"image_embed": img_embeddings}
     if condition_on_text_encodings:
         if text_embeddings[0] is None:
             # Generate text embeddings from text
@@ -569,7 +567,7 @@ def initialize_training(config: TrainDecoderConfig, config_path):
     # If we are in deepspeed fp16 mode, we must ensure learned variance is off
     if accelerator.mixed_precision == "fp16" and accelerator.distributed_type == accelerate_dataclasses.DistributedType.DEEPSPEED and config.decoder.learned_variance:
         raise ValueError("DeepSpeed fp16 mode does not support learned variance")
-    
+
     # Set up data
     all_shards = list(range(config.data.start_shard, config.data.end_shard + 1))
     world_size = accelerator.num_processes
@@ -604,7 +602,9 @@ def initialize_training(config: TrainDecoderConfig, config_path):
 
     has_img_embeddings = config.data.img_embeddings_url is not None
     has_text_embeddings = config.data.text_embeddings_url is not None
-    conditioning_on_text = any([unet.cond_on_text_encodings for unet in config.decoder.unets])
+    conditioning_on_text = any(
+        unet.cond_on_text_encodings for unet in config.decoder.unets
+    )
 
     has_clip_model = clip is not None
     data_source_string = ""

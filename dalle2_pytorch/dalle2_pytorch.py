@@ -47,16 +47,13 @@ def identity(t, *args, **kwargs):
     return t
 
 def first(arr, d = None):
-    if len(arr) == 0:
-        return d
-    return arr[0]
+    return d if len(arr) == 0 else arr[0]
 
 def maybe(fn):
     @wraps(fn)
     def inner(x, *args, **kwargs):
-        if not exists(x):
-            return x
-        return fn(x, *args, **kwargs)
+        return x if not exists(x) else fn(x, *args, **kwargs)
+
     return inner
 
 def default(val, d):
@@ -99,18 +96,24 @@ def eval_decorator(fn):
     return inner
 
 def is_float_dtype(dtype):
-    return any([dtype == float_dtype for float_dtype in (torch.float64, torch.float32, torch.float16, torch.bfloat16)])
+    return any(
+        dtype == float_dtype
+        for float_dtype in (
+            torch.float64,
+            torch.float32,
+            torch.float16,
+            torch.bfloat16,
+        )
+    )
 
 def is_list_str(x):
     if not isinstance(x, (list, tuple)):
         return False
-    return all([type(el) == str for el in x])
+    return all(type(el) == str for el in x)
 
 def pad_tuple_to_length(t, length, fillvalue = None):
     remain_length = length - len(t)
-    if remain_length <= 0:
-        return t
-    return (*t, *((fillvalue,) * remain_length))
+    return t if remain_length <= 0 else (*t, *((fillvalue,) * remain_length))
 
 # checkpointing helper function
 
@@ -125,12 +128,11 @@ def make_checkpointable(fn, **kwargs):
 
     @wraps(fn)
     def inner(*args):
-        input_needs_grad = any([isinstance(el, torch.Tensor) and el.requires_grad for el in args])
+        input_needs_grad = any(
+            isinstance(el, torch.Tensor) and el.requires_grad for el in args
+        )
 
-        if not input_needs_grad:
-            return fn(*args)
-
-        return checkpoint(fn, *args)
+        return fn(*args) if not input_needs_grad else checkpoint(fn, *args)
 
     return inner
 
@@ -414,9 +416,7 @@ class OpenClipAdapter(BaseClipAdapter):
     @property
     def image_size(self):
         image_size = self.clip.visual.image_size
-        if isinstance(image_size, tuple):
-            return max(image_size)
-        return image_size
+        return max(image_size) if isinstance(image_size, tuple) else image_size
 
     @property
     def image_channels(self):
@@ -493,13 +493,11 @@ def discretized_gaussian_log_likelihood(x, *, means, log_scales, thres = 0.999):
     log_one_minus_cdf_min = log(1. - cdf_min, eps = eps)
     cdf_delta = cdf_plus - cdf_min
 
-    log_probs = torch.where(x < -thres,
+    return torch.where(
+        x < -thres,
         log_cdf_plus,
-        torch.where(x > thres,
-            log_one_minus_cdf_min,
-            log(cdf_delta, eps = eps)))
-
-    return log_probs
+        torch.where(x > thres, log_one_minus_cdf_min, log(cdf_delta, eps=eps)),
+    )
 
 def cosine_beta_schedule(timesteps, s = 0.008):
     """
@@ -752,13 +750,10 @@ class MLP(nn.Module):
             norm_fn()
         )]
 
-        for _ in range(depth - 1):
-            layers.append(nn.Sequential(
-                nn.Linear(hidden_dim, hidden_dim),
-                nn.SiLU(),
-                norm_fn()
-            ))
-
+        layers.extend(
+            nn.Sequential(nn.Linear(hidden_dim, hidden_dim), nn.SiLU(), norm_fn())
+            for _ in range(depth - 1)
+        )
         layers.append(nn.Linear(hidden_dim, dim_out))
         self.net = nn.Sequential(*layers)
 
@@ -1253,7 +1248,9 @@ class DiffusionPrior(nn.Module):
         return l2norm(image_embed) * self.image_embed_scale
 
     def p_mean_variance(self, x, t, text_cond, self_cond = None, clip_denoised = False, cond_scale = 1.):
-        assert not (cond_scale != 1. and not self.can_classifier_guidance), 'the model was not trained with conditional dropout, and thus one cannot use classifier free guidance (cond_scale anything other than 1)'
+        assert (
+            cond_scale == 1.0 or self.can_classifier_guidance
+        ), 'the model was not trained with conditional dropout, and thus one cannot use classifier free guidance (cond_scale anything other than 1)'
 
         pred = self.net.forward_with_cond_scale(x, t, cond_scale = cond_scale, self_cond = self_cond, **text_cond)
 
@@ -1379,8 +1376,7 @@ class DiffusionPrior(nn.Module):
         else:
             normalized_image_embed = self.p_sample_loop_ddim(*args, **kwargs, timesteps = timesteps)
 
-        image_embed = normalized_image_embed / self.image_embed_scale
-        return image_embed
+        return normalized_image_embed / self.image_embed_scale
 
     def p_losses(self, image_embed, times, text_cond, noise = None):
         noise = default(noise, lambda: torch.randn_like(image_embed))
@@ -1411,8 +1407,7 @@ class DiffusionPrior(nn.Module):
         else:
             target = noise
 
-        loss = self.noise_scheduler.loss_fn(pred, target)
-        return loss
+        return self.noise_scheduler.loss_fn(pred, target)
 
     @torch.no_grad()
     @eval_decorator
@@ -1480,7 +1475,11 @@ class DiffusionPrior(nn.Module):
     ):
         assert exists(text) ^ exists(text_embed), 'either text or text embedding must be supplied'
         assert exists(image) ^ exists(image_embed), 'either image or image embedding must be supplied'
-        assert not (self.condition_on_text_encodings and (not exists(text_encodings) and not exists(text))), 'text encodings must be present if you specified you wish to condition on it on initialization'
+        assert (
+            not self.condition_on_text_encodings
+            or exists(text_encodings)
+            or exists(text)
+        ), 'text encodings must be present if you specified you wish to condition on it on initialization'
 
         if exists(image):
             image_embed, _ = self.clip.embed_image(image)
@@ -2184,7 +2183,9 @@ class Unet(nn.Module):
 
         # add low resolution conditioning, if present
 
-        assert not (self.lowres_cond and not exists(lowres_cond_img)), 'low resolution conditioning image must be present'
+        assert not self.lowres_cond or exists(
+            lowres_cond_img
+        ), 'low resolution conditioning image must be present'
 
         # concat self conditioning, if needed
 

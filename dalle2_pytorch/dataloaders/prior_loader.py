@@ -148,16 +148,13 @@ def get_reader(
     if text_conditioned:
         assert meta_url is not None, "Must supply meta url if text-conditioned"
 
-        image_reader = EmbeddingReader(
+        return EmbeddingReader(
             embeddings_folder=img_url,
             file_format="parquet_npy",
             # will assume the caption column exists and is the only one requested
             meta_columns=["caption"],
             metadata_folder=meta_url,
         )
-
-        return image_reader
-
     # otherwise we will require text embeddings as well and return two readers
     assert (
         txt_url is not None
@@ -250,14 +247,6 @@ def make_splits(
             image_reader=image_reader,
         )
 
-        train_split_args = dict(**reader_args, **train_split_args)
-        eval_split_args = dict(**reader_args, **eval_split_args)
-        test_split_args = dict(**reader_args, **test_split_args)
-
-        train = PriorEmbeddingDataset(**train_split_args)
-        val = PriorEmbeddingDataset(**eval_split_args)
-        test = PriorEmbeddingDataset(**test_split_args)
-
     else:
         # add the non-conditioned args to a unified dict
         reader_args = dict(
@@ -266,13 +255,13 @@ def make_splits(
             text_reader=text_reader,
         )
 
-        train_split_args = dict(**reader_args, **train_split_args)
-        eval_split_args = dict(**reader_args, **eval_split_args)
-        test_split_args = dict(**reader_args, **test_split_args)
+    train_split_args = dict(**reader_args, **train_split_args)
+    eval_split_args = dict(**reader_args, **eval_split_args)
+    test_split_args = dict(**reader_args, **test_split_args)
 
-        train = PriorEmbeddingDataset(**train_split_args)
-        val = PriorEmbeddingDataset(**eval_split_args)
-        test = PriorEmbeddingDataset(**test_split_args)
+    train = PriorEmbeddingDataset(**train_split_args)
+    val = PriorEmbeddingDataset(**eval_split_args)
+    test = PriorEmbeddingDataset(**test_split_args)
 
     # true batch size is specifed in the PriorEmbeddingDataset
     train_loader = DataLoader(train, batch_size=None)

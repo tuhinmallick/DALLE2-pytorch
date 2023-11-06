@@ -180,10 +180,7 @@ class DiffusionPriorConfig(BaseModel):
         has_clip = exists(kwargs.pop('clip'))
         kwargs.pop('net')
 
-        clip = None
-        if has_clip:
-            clip = self.clip.create()
-
+        clip = self.clip.create() if has_clip else None
         diffusion_prior_network = self.net.create()
         return DiffusionPrior(net = diffusion_prior_network, clip = clip, **kwargs)
 
@@ -261,11 +258,10 @@ class DecoderConfig(BaseModel):
         unet_configs = decoder_kwargs.pop('unets')
         unets = [Unet(**config) for config in unet_configs]
 
-        has_clip = exists(decoder_kwargs.pop('clip'))
-        clip = None
-        if has_clip:
+        if has_clip := exists(decoder_kwargs.pop('clip')):
             clip = self.clip.create()
-
+        else:
+            clip = None
         return Decoder(unets, clip=clip, **decoder_kwargs)
 
     @validator('image_sizes')
@@ -361,7 +357,9 @@ class TrainDecoderConfig(BaseModel):
             # Then something else errored and we should just pass through
             return values
 
-        using_text_embeddings = any([unet.cond_on_text_encodings for unet in decoder_config.unets])
+        using_text_embeddings = any(
+            unet.cond_on_text_encodings for unet in decoder_config.unets
+        )
         using_clip = exists(decoder_config.clip)
         img_emb_url = data_config.img_embeddings_url
         text_emb_url = data_config.text_embeddings_url

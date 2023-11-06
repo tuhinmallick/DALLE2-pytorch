@@ -668,10 +668,7 @@ class VQGanVAE(nn.Module):
 
         fmap = self.enc_dec.decode(fmap)
 
-        if not return_indices_and_loss:
-            return fmap
-
-        return fmap, indices, commit_loss
+        return fmap if not return_indices_and_loss else (fmap, indices, commit_loss)
 
     def forward(
         self,

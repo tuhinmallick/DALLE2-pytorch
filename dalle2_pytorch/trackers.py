@@ -250,9 +250,8 @@ class WandbLoader(BaseLoader):
             assert self.run_path is not None, 'wandb run was not found to load from. If not using the wandb logger must specify the `wandb_run_path`.'
         assert self.run_path is not None, '`wandb_run_path` must be provided for the wandb loader'
         assert self.file_path is not None, '`wandb_file_path` must be provided for the wandb loader'
-        
+
         os.environ["WANDB_SILENT"] = "true"
-        pass  # TODO: Actually implement that
 
     def recall(self) -> dict:
         file_reference = self.wandb.restore(self.file_path, run_path=self.run_path)
@@ -289,7 +288,10 @@ class BaseSaver:
         self.save_meta_to = save_meta_to
         self.saving_meta = save_meta_to is not None
         self.save_type = save_type
-        assert save_type in ['checkpoint', 'model'], '`save_type` must be one of `checkpoint` or `model`'
+        assert save_type in {
+            'checkpoint',
+            'model',
+        }, '`save_type` must be one of `checkpoint` or `model`'
         assert self.saving_latest or self.saving_best or self.saving_meta, 'At least one saving option must be specified'
 
     def init(self, logger: BaseLogger, **kwargs) -> None:
@@ -349,7 +351,7 @@ class WandbSaver(BaseSaver):
         save_path = Path(self.data_path) / save_path
         save_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(local_path, save_path)
-        self.run.save(str(save_path), base_path = str(self.data_path), policy='now')
+        self.run.save(save_path, base_path = str(self.data_path), policy='now')
 
 class HuggingfaceSaver(BaseSaver):
     def __init__(self, data_path: str, huggingface_repo: str, token_path: Optional[str] = None, **kwargs):
@@ -379,8 +381,8 @@ class HuggingfaceSaver(BaseSaver):
         print(f"Saving {save_path_file_name} {self.save_type} to huggingface repo {self.huggingface_repo}")
         self.hub.upload_file(
             path_or_fileobj=str(local_path),
-            path_in_repo=str(save_path),
-            repo_id=self.huggingface_repo
+            path_in_repo=save_path,
+            repo_id=self.huggingface_repo,
         )
         
 saver_type_map = {
@@ -401,8 +403,8 @@ def create_saver(saver_type: str, data_path: str, **kwargs) -> BaseSaver:
 class Tracker:
     def __init__(self, data_path: Optional[str] = DEFAULT_DATA_PATH, overwrite_data_path: bool = False, dummy_mode: bool = False):
         self.data_path = Path(data_path)
-        if not dummy_mode:
-            if not overwrite_data_path:
+        if not overwrite_data_path:
+            if not dummy_mode:
                 assert not self.data_path.exists(), f'Data path {self.data_path} already exists. Set overwrite_data_path to True to overwrite.'
                 if not self.data_path.exists():
                     self.data_path.mkdir(parents=True)
@@ -420,7 +422,9 @@ class Tracker:
 
         # Now we know that the autoresume file exists, but if we are not auto resuming we should remove it so that we don't accidentally load it next time
         if not self.logger.auto_resume:
-            print(f'Removing auto_resume.json because auto_resume is not enabled in the config')
+            print(
+                'Removing auto_resume.json because auto_resume is not enabled in the config'
+            )
             self.auto_resume_path.unlink()
             return False
 
@@ -520,7 +524,7 @@ class Tracker:
         If save_type is 'checkpoint', we save the entire trainer state dict.
         If save_type is 'model', we save only the model state dict.
         """
-        assert save_type in ['checkpoint', 'model']
+        assert save_type in {'checkpoint', 'model'}
         if save_type == 'checkpoint':
             # Create a metadata dict without the blacklisted keys so we do not error when we create the state dict
             metadata = {k: v for k, v in self.save_metadata.items() if k not in self.blacklisted_checkpoint_metadata_keys}

@@ -31,11 +31,7 @@ def exists(val):
 
 
 def all_between(values: list, lower_bound, upper_bound):
-    for value in values:
-        if value < lower_bound or value > upper_bound:
-            return False
-
-    return True
+    return not any(value < lower_bound or value > upper_bound for value in values)
 
 
 def make_model(
@@ -47,8 +43,7 @@ def make_model(
     # create model from config
     diffusion_prior = prior_config.create()
 
-    # instantiate the trainer
-    trainer = DiffusionPriorTrainer(
+    return DiffusionPriorTrainer(
         diffusion_prior=diffusion_prior,
         lr=train_config.lr,
         wd=train_config.wd,
@@ -59,8 +54,6 @@ def make_model(
         accelerator=accelerator,
         warmup_steps=train_config.warmup_steps,
     )
-
-    return trainer
 
 
 def create_tracker(
@@ -169,8 +162,8 @@ def save_trainer(
         trainer=trainer,
         is_best=is_best,
         is_latest=is_latest,
-        epoch=int(epoch),
-        samples_seen=int(samples_seen),
+        epoch=epoch,
+        samples_seen=samples_seen,
         best_validation_loss=best_validation_loss,
     )
 
@@ -409,7 +402,7 @@ def eval_model(
     # measure loss on a seperate split of data
 
     if report_loss:
-        loss = report_validation_loss(
+        return report_validation_loss(
             trainer=trainer,
             dataloader=dataloader,
             text_conditioned=text_conditioned,
@@ -419,8 +412,6 @@ def eval_model(
             tracker_folder=tracker_folder,
             loss_type=loss_type,
         )
-
-        return loss
 
 
 # training script
@@ -455,7 +446,7 @@ def train(
 
         if train_loader.dataset.get_start() > 0 and epoch == start_epoch+1:
             if trainer.accelerator.is_main_process:
-                click.secho(f"Finished resumed epoch...resetting dataloader.")
+                click.secho("Finished resumed epoch...resetting dataloader.")
             train_loader.dataset.set_start(0)
 
         for img, txt in train_loader:
@@ -602,7 +593,7 @@ def train(
     # evaluate on test data
 
     if trainer.accelerator.is_main_process:
-        click.secho(f"Starting Test", fg="red")
+        click.secho("Starting Test", fg="red")
 
     # save one last time as latest before beginning validation
 

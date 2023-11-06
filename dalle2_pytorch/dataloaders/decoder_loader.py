@@ -71,7 +71,9 @@ def unassociated_shard_skipper(tarfiles, embeddings_url, handler=wds.handlers.re
     embeddings_fs, embeddings_path = fsspec.core.url_to_fs(embeddings_url)
     embedding_files = embeddings_fs.ls(embeddings_path)
     get_embedding_shard = lambda embedding_file: int(embedding_file.split("_")[-1].split(".")[0])
-    embedding_shards = set([get_embedding_shard(filename) for filename in embedding_files])  # Sets have O(1) check for member
+    embedding_shards = {
+        get_embedding_shard(filename) for filename in embedding_files
+    }
 
     get_tar_shard = lambda tar_file: int(tar_file.split("/")[-1].split(".")[0])
     for tarfile in tarfiles:
@@ -167,7 +169,11 @@ class ImageEmbeddingDataset(wds.DataPipeline, wds.compat.FluidInterface):
         self.resampling = resample
         self.img_preproc = img_preproc
         # If s3, check if s3fs is installed and s3cmd is installed and check if the data is piped instead of straight up
-        if (isinstance(urls, str) and "s3:" in urls) or (isinstance(urls, list) and any(["s3:" in url for url in urls])):
+        if (
+            (isinstance(urls, str) and "s3:" in urls)
+            or isinstance(urls, list)
+            and any("s3:" in url for url in urls)
+        ):
             # Then this has an s3 link for the webdataset and we need extra packages
             if shutil.which("s3cmd") is None:
                 raise RuntimeError("s3cmd is required for s3 webdataset")
@@ -185,7 +191,7 @@ class ImageEmbeddingDataset(wds.DataPipeline, wds.compat.FluidInterface):
             self.append(wds.SimpleShardList(urls))
             if shuffle_shards:
                 self.append(wds.filters.shuffle(1000))
-        
+
         if img_embedding_folder_url is not None:
             # There may be webdataset shards that do not have a embedding shard associated with it. If we do not skip these, they would cause issues.
             self.append(skip_unassociated_shards(embeddings_url=img_embedding_folder_url, handler=handler))

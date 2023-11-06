@@ -31,8 +31,7 @@ def noop(*args, **kwargs):
 
 def cycle(dl):
     while True:
-        for data in dl:
-            yield data
+        yield from dl
 
 def cast_tuple(t):
     return t if isinstance(t, (tuple, list)) else (t,)
@@ -163,7 +162,9 @@ class VQGanVAETrainer(nn.Module):
 
         self.results_folder = Path(results_folder)
 
-        if len([*self.results_folder.glob('**/*')]) > 0 and yes_or_no('do you want to clear previous experiment checkpoints and results?'):
+        if [*self.results_folder.glob('**/*')] and yes_or_no(
+            'do you want to clear previous experiment checkpoints and results?'
+        ):
             rmtree(str(self.results_folder))
 
         self.results_folder.mkdir(parents = True, exist_ok = True)

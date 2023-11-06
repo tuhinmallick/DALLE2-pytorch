@@ -124,16 +124,10 @@ def split(t, split_size = None):
     if isinstance(t, torch.Tensor):
         return t.split(split_size, dim = 0)
 
-    if isinstance(t, Iterable):
-        return split_iterable(t, split_size)
-
-    return TypeError
+    return split_iterable(t, split_size) if isinstance(t, Iterable) else TypeError
 
 def find_first(cond, arr):
-    for el in arr:
-        if cond(el):
-            return el
-    return None
+    return next((el for el in arr if cond(el)), None)
 
 def split_args_and_kwargs(*args, split_size = None, **kwargs):
     all_args = (*args, *kwargs.values())
@@ -269,7 +263,7 @@ class DiffusionPriorTrainer(nn.Module):
         if self.accelerator.is_main_process:
             print(f"Saving checkpoint at step: {self.step.item()}")
             path = Path(path)
-            assert not (path.exists() and not overwrite)
+            assert not path.exists() or overwrite
             path.parent.mkdir(parents = True, exist_ok = True)
 
             # FIXME: LambdaLR can't be saved due to pickling issues
@@ -465,7 +459,9 @@ class DecoderTrainer(nn.Module):
 
         lr, wd, eps, warmup_steps, cosine_decay_max_steps = map(partial(cast_tuple, length = self.num_unets), (lr, wd, eps, warmup_steps, cosine_decay_max_steps))
 
-        assert all([unet_lr <= 1e-2 for unet_lr in lr]), 'your learning rate is too high, recommend sticking with 1e-4, at most 5e-4'
+        assert all(
+            unet_lr <= 1e-2 for unet_lr in lr
+        ), 'your learning rate is too high, recommend sticking with 1e-4, at most 5e-4'
 
         optimizers = []
         schedulers = []
@@ -559,7 +555,7 @@ class DecoderTrainer(nn.Module):
 
     def save(self, path, overwrite = True, **kwargs):
         path = Path(path)
-        assert not (path.exists() and not overwrite)
+        assert not path.exists() or overwrite
         path.parent.mkdir(parents = True, exist_ok = True)
 
         save_obj = dict(
